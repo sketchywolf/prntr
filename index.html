@@ -85,7 +85,15 @@ function loadTshirtModel() {
     tshirtMesh = gltf.scene;
     tshirtMesh.scale.set(1.5,1.5,1.5);
     scene.add(tshirtMesh);
-  }, undefined, err=>console.error(err));
+
+    // List all meshes and their names
+    console.log("Meshes inside the GLB:");
+    tshirtMesh.traverse(obj => {
+        if(obj.isMesh) {
+            console.log("Mesh name:", obj.name);
+        }
+    });
+}, undefined, err => console.error(err));
 }
 
 // Apply uploaded design as texture
