@@ -1,0 +1,59 @@
+import React, { useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, useTexture } from "@react-three/drei";
+import { Button } from "@/components/ui/button";
+
+// Basic 3D T‑shirt model (placeholder box)
+function ShirtModel({ texture }) {
+  const tex = useTexture(texture);
+  return (
+    <mesh>
+      <boxGeometry args={[2, 3, 1]} />
+      <meshStandardMaterial map={tex} />
+    </mesh>
+  );
+}
+
+export default function App() {
+  const [image, setImage] = useState(null);
+  const [previewTexture, setPreviewTexture] = useState(null);
+
+  const handleUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImage(file);
+      setPreviewTexture(url);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Left: 3D Preview */}
+      <div className="w-full h-[500px] bg-black rounded-2xl p-2">
+        <Canvas>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[5, 5, 5]} />
+          <OrbitControls enableZoom={true} />
+          <ShirtModel texture={previewTexture} />
+        </Canvas>
+      </div>
+
+      {/* Right: Controls */}
+      <div className="flex flex-col gap-4 bg-gray-800 p-6 rounded-2xl shadow-lg">
+        <h1 className="text-2xl font-bold">Create Your Custom T‑Shirt</h1>
+
+        <label className="block">Upload Image / Design</label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleUpload}
+          className="bg-gray-700 p-2 rounded"
+        />
+
+        <Button className="mt-4">Download Print‑Ready File</Button>
+        <Button variant="secondary">Proceed to Checkout</Button>
+      </div>
+    </div>
+  );
+}
