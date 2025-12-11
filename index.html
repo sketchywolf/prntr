@@ -79,7 +79,7 @@ function init() {
 // Load T-shirt GLB
 function loadTshirtModel() {
   const loader = new THREE.GLTFLoader();
-  const url = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/RobotExpressive.glb'; // replace with actual T-shirt model
+  const url = './models/tshirt.glb'; // replace with actual T-shirt model
 
   loader.load(url, gltf => {
     tshirtMesh = gltf.scene;
