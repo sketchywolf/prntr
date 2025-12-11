@@ -3,553 +3,407 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simple T-Shirt Customizer (Pure HTML/JS)</title>
+  <title>3D T-Shirt Designer — Plain HTML</title>
 
-  <!-- html2canvas for PNG export -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- Three.js (r152) and loaders from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
 
   <style>
-    :root{
-      --bg:#0f1724;
-      --panel:#0b1220;
-      --accent:#06b6d4;
-      --muted:#93c5fd;
-      --card:#0b1220;
-    }
-    *{box-sizing:border-box;font-family:Inter,Segoe UI,system-ui,Roboto,'Helvetica Neue',Arial}
-    body{margin:0;min-height:100vh;background:linear-gradient(180deg,var(--bg),#02111a);color:#e6eef6;padding:20px;display:flex;gap:20px;align-items:flex-start;justify-content:center}
-    .container{max-width:1200px;width:100%;display:grid;grid-template-columns:1fr 380px;gap:20px}
-
-    /* Left: preview stage */
-    .stage-wrap{background:rgba(255,255,255,0.03);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
-    .stage{width:640px;height:640px;background:linear-gradient(180deg,#fff 0%, #f3f4f6 100%);border-radius:20px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;
-      /* perspective for 3D Y-rotation */
-      perspective:1200px;
-      margin:0 auto;
-    }
-
-    /* Shirt wrapper that rotates in 3D */
-    .shirt-3d{
-      width:420px;height:520px;position:relative;transform-style:preserve-3d;transition:transform .2s;
-      display:flex;align-items:center;justify-content:center;
-    }
-
-    /* T-shirt image background (transparent PNG recommended) */
-    .shirt{
-      width:100%;height:100%;background-repeat:no-repeat;background-position:center center;background-size:contain;position:relative;
-      transform-style:preserve-3d;
-    }
-
-    /* Design layer placed on top of the shirt - draggable element */
-    .design-layer{position:absolute;left:50%;top:40%;transform-origin:center center;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center}
-    .design-layer.grabbing{cursor:grabbing}
-    .design-img{max-width:100%;max-height:100%;display:block;pointer-events:none;user-select:none;}
-
-    /* Handles */
-    .handle{position:absolute;width:18px;height:18px;background:var(--accent);border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#012; font-size:12px; font-weight:700; cursor:pointer}
-    .handle.rotate{right:-10px;top:50%;transform:translate(50%,-50%)}
-    .handle.scale{right:-10px;bottom:-10px;transform:translate(50%,50%)}
-    .element-box{position:absolute;border:1px dashed rgba(255,255,255,0.25);pointer-events:none;display:none}
-
-    /* Right: controls panel */
-    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:18px;border-radius:12px;min-height:200px}
-    .panel h2{margin:0 0 12px 0;font-size:18px}
-    .row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    :root{--bg:#0b1220;--panel:#071021;--accent:#06b6d4}
+    *{box-sizing:border-box;font-family:Inter,system-ui,Arial}
+    body{margin:0;background:linear-gradient(180deg,#071021,#04101a);color:#e6eef6}
+    header{padding:18px;text-align:center;background:#02111a;color:#e6eef6}
+    .wrap{max-width:1200px;margin:18px auto;display:flex;gap:18px;padding:12px}
+    .viewer{flex:1;background:#0b1220;border-radius:10px;padding:8px;display:flex;flex-direction:column;align-items:center}
+    #canvasContainer{width:100%;height:680px;border-radius:8px;overflow:hidden;background:#111}
+    .panel{width:360px;background:#071021;padding:16px;border-radius:10px;display:flex;flex-direction:column;gap:12px}
+    label{font-size:13px;color:#9fb6cf}
     input[type=file]{color:transparent}
-    button, input[type=button]{background:var(--accent);border:none;color:#012;padding:10px 12px;border-radius:8px;cursor:pointer}
-    .muted{color:#9fb6cf;font-size:13px}
-    .small{font-size:13px}
-    .control{background:#071021;padding:10px;border-radius:8px;margin-bottom:10px}
-    label{font-size:13px;color:#cfeffd;margin-bottom:6px;display:block}
-
-    /* Text element style */
-    .txt-el{padding:6px 10px;border-radius:6px;background:transparent;color:#0b1220;font-weight:700;user-select:none}
-
-    /* Responsive tweak */
-    @media (max-width:980px){
-      .container{grid-template-columns:1fr}
-      .stage{width:100%;height:520px}
-      .panel{order:2}
-    }
+    button{background:var(--accent);border:none;padding:10px;border-radius:8px;color:#012;cursor:pointer}
+    select,input[type=range]{width:100%}
+    .small{font-size:13px;color:#9fb6cf}
+    .muted{font-size:12px;color:#95b6ce}
+    .row{display:flex;gap:8px}
+    .row button{flex:1}
+    footer{color:#9fb6cf;font-size:13px;text-align:center;padding:8px}
+    @media (max-width:980px){.wrap{flex-direction:column}.panel{width:100%}}
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- PREVIEW -->
-    <div class="stage-wrap">
-      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <div style="display:flex;gap:10px;align-items:center">
-          <strong style="font-size:18px">T-Shirt Customizer</strong>
-          <div class="muted" style="font-size:13px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,0.02)">Pure HTML / JS</div>
-        </div>
-        <div class="muted small">Tip: drag image, use handles to resize/rotate, use slider to spin shirt</div>
-      </div>
+  <header>
+    <strong>3D T-Shirt Designer</strong> — Plain HTML (upload design → apply to shirt mesh → export PNG)
+  </header>
 
-      <div class="stage" id="stage">
-        <div class="shirt-3d" id="shirt3d">
-          <!-- Shirt with transparent PNG background. Default uses inline SVG shirt (simple). You can replace with your own transparent PNG by changing background-image via controls. -->
-          <div class="shirt" id="shirt" style="background-image: url('data:image/svg+xml;utf8,\
-            <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23ffffff%22>\
-            <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22white%22 stroke=%22black%22 stroke-width=%221%22/></g></svg>');">
-            <!-- design wrapper: we will insert elements here -->
-            <div id="designArea" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"></div>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px">
-        <label class="small muted">Rotate preview</label>
-        <input id="rotateSlider" type="range" min="0" max="360" value="0" style="width:260px">
+  <div class="wrap">
+    <!-- 3D VIEWER -->
+    <div class="viewer">
+      <div id="canvasContainer"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;width:100%;align-items:center">
+        <label class="small" style="flex:1">Auto rotate</label>
+        <input id="autorotate" type="checkbox" checked>
+        <label class="small" style="width:110px;text-align:right">Exposure</label>
+        <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1" style="width:120px">
       </div>
     </div>
 
     <!-- CONTROLS -->
     <div class="panel">
-      <h2>Controls</h2>
-
-      <div class="control">
-        <label>Upload image to place on shirt</label>
-        <div class="row">
-          <input id="fileInput" type="file" accept="image/*">
-          <button id="addImageBtn">Add as design</button>
+      <div>
+        <label>Choose mannequin (male / female)</label>
+        <div class="row" style="margin-top:8px">
+          <button id="maleBtn">Male Dummy</button>
+          <button id="femaleBtn">Female Dummy</button>
         </div>
-        <div class="muted small">Supported: PNG/JPG. Transparent PNG works best for print.</div>
+        <div class="muted" style="margin-top:6px">Tip: use models with a separate shirt mesh named <code>Shirt</code> (or similar).</div>
       </div>
 
-      <div class="control">
-        <label>Add text</label>
-        <div class="row">
-          <input id="textInput" placeholder="Type text here" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit">
-          <button id="addTextBtn">Add</button>
-        </div>
+      <div>
+        <label>Upload your design (PNG recommended, transparent background OK)</label>
+        <input id="designInput" type="file" accept="image/*">
+        <div class="small muted">This image will be used as the shirt texture.</div>
+      </div>
 
+      <div>
+        <label>Mapping / Options</label>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <label style="flex:1">Font size
-            <input id="fontSize" type="range" min="14" max="120" value="36" style="width:100%">
-          </label>
-        </div>
-      </div>
-
-      <div class="control">
-        <label>T-shirt background / color</label>
-        <div class="row">
-          <select id="presetShirt" style="flex:1;padding:8px;border-radius:6px;background:transparent;color:inherit">
-            <option value="white">White (Default)</option>
-            <option value="black">Black</option>
-            <option value="blue">Blue</option>
-            <option value="transparent">Transparent (use your PNG)</option>
+          <select id="wrapMode">
+            <option value="fit">Fit (centered)</option>
+            <option value="repeat">Repeat</option>
+            <option value="stretch">Stretch to cover</option>
           </select>
-          <button id="downloadBtn">Download PNG</button>
+          <input id="scaleFactor" type="range" min="0.2" max="3" step="0.01" value="1" title="Scale">
         </div>
-        <div class="muted small">If you want a real photographic mockup or GLB 3D, I can add that later.</div>
+        <div class="small muted">Use scale to change how big the design appears on the shirt (if the model supports UVs).</div>
       </div>
 
-      <div class="control">
-        <label>Design elements</label>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button id="selectBtn" onclick="selectMode()">Select</button>
-          <button id="clearBtn">Clear design</button>
+      <div>
+        <label>Preview & Export</label>
+        <div class="row" style="margin-top:8px">
+          <button id="screenshotBtn">Download PNG</button>
+          <button id="resetBtn">Reset Texture</button>
         </div>
-        <div class="muted small">Click a design element to select it. Use the handles to rotate/scale. Drag to move.</div>
       </div>
 
-      <div style="margin-top:8px" class="muted small">
-        <strong>How to save to GitHub:</strong><br>
-        Create a repo, add this file as <code>index.html</code>, then enable GitHub Pages (optional) or just open the file locally.
+      <div>
+        <label>Model sources / notes</label>
+        <div class="small muted">
+          Demo uses remote example models. For best results, replace the GLB files with mannequins that have a shirt mesh and proper UVs. Put them in <code>/models/male.glb</code> and <code>/models/female.glb</code>.
+        </div>
       </div>
     </div>
   </div>
 
+  <footer>If the design doesn't wrap as expected, try a different mannequin GLB that includes a shirt mesh with UV mapping named <code>Shirt</code>.</footer>
+
 <script>
-/* ============================
-   Simple in-browser design editor
-   - supports adding images and text elements
-   - drag, rotate, scale via handles
-   - export PNG via html2canvas
-   ============================ */
+/* ------------------------------
+   3D viewer using Three.js (plain JS)
+   - load GLB mannequin
+   - apply uploaded image as texture to mesh named 'Shirt' or fallback
+   - orbit controls + auto-rotate
+   - canvas screenshot export
+   ------------------------------ */
 
-const stage = document.getElementById('stage');
-const shirt3d = document.getElementById('shirt3d');
-const shirt = document.getElementById('shirt');
-const designArea = document.getElementById('designArea');
-const rotateSlider = document.getElementById('rotateSlider');
-const fileInput = document.getElementById('fileInput');
-const addImageBtn = document.getElementById('addImageBtn');
-const addTextBtn = document.getElementById('addTextBtn');
-const textInput = document.getElementById('textInput');
-const fontSizeRange = document.getElementById('fontSize');
-const downloadBtn = document.getElementById('downloadBtn');
-const presetShirt = document.getElementById('presetShirt');
-const clearBtn = document.getElementById('clearBtn');
+const container = document.getElementById('canvasContainer');
+let scene, camera, renderer, controls, mixer, clock, currentGltf;
+let shirtMesh = null;
+let currentTexture = null;
 
-let selectedEl = null;
-let dragState = null;
+// Default demo model URLs (may not have a 'Shirt' mesh).
+// Recommended: host your own GLB files with a shirt mesh named 'Shirt' and place under /models/.
+const MODEL_URLS = {
+  male: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb',
+  female: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/Flamingo.glb'
+};
 
-/* rotate preview slider => rotateY */
-rotateSlider.addEventListener('input', e=>{
-  const deg = e.target.value;
-  shirt3d.style.transform = `rotateY(${deg}deg)`;
-});
+// If you want to use local models, change to: '/models/male.glb', '/models/female.glb'
+let activeModelType = 'male';
 
-/* Shirt color presets (easy: change background color behind shirt image) */
-presetShirt.addEventListener('change', e=>{
-  const v = e.target.value;
-  if(v === 'white') {
-    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
-      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23ffffff%22>\
-      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22white%22 stroke=%22black%22 stroke-width=%221%22/></g></svg>')";
-    shirt.style.backgroundColor = 'transparent';
-    stage.style.background = 'linear-gradient(180deg,#fff,#f3f4f6)';
-  } else if(v === 'black') {
-    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
-      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23000%22>\
-      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22black%22 stroke=%22white%22 stroke-width=%221%22/></g></svg>')";
-    stage.style.background = 'linear-gradient(180deg,#0b1220,#071021)';
-  } else if(v === 'blue') {
-    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
-      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23006b8f%22>\
-      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22%23006b8f%22 stroke=%22white%22 stroke-width=%221%22/></g></svg>')";
-    stage.style.background = 'linear-gradient(180deg,#e6f7ff,#dff7ff)';
-  } else if(v === 'transparent'){
-    // Clear the shirt drawing and leave transparent background (user should use a real PNG)
-    shirt.style.backgroundImage = "none";
-    shirt.style.backgroundColor = 'transparent';
-    stage.style.background = 'linear-gradient(180deg,#fff,#f3f4f6)';
+// Init scene
+function init() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b1220);
+
+  clock = new THREE.Clock();
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+  camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+  camera.position.set(0, 1.6, 3.2);
+
+  // Lights
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+  hemi.position.set(0, 1, 0);
+  scene.add(hemi);
+
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  renderer.setSize(width, height);
+  container.innerHTML = '';
+  container.appendChild(renderer.domElement);
+
+  // Controls
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 1.2, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+
+  // Ground (soft)
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x081018, roughness: 0.9, metalness: 0.1 });
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  scene.add(ground);
+
+  window.addEventListener('resize', onWindowResize);
+
+  // Start animation loop
+  animate();
+}
+
+// Load GLB model (male/female)
+function loadModel(url) {
+  const loader = new THREE.GLTFLoader();
+
+  // dispose previous
+  if (currentGltf) {
+    scene.remove(currentGltf.scene);
+    disposeGltf(currentGltf);
+    currentGltf = null;
+    shirtMesh = null;
   }
-});
 
-/* Add image: load file into memory */
-let lastLoadedImageData = null;
-fileInput.addEventListener('change', async e=>{
-  const f = e.target.files && e.target.files[0];
-  if(!f) return;
-  const reader = new FileReader();
-  reader.onload = ()=> {
-    lastLoadedImageData = reader.result;
-  };
-  reader.readAsDataURL(f);
-});
+  loader.load(url, gltf => {
+    currentGltf = gltf;
+    const model = gltf.scene;
+    model.position.set(0, 0, 0);
+    model.scale.set(1.0, 1.0, 1.0);
+    scene.add(model);
 
-addImageBtn.addEventListener('click', ()=>{
-  if(!lastLoadedImageData){
-    alert('Please choose an image file first (PNG/JPG).');
-    return;
+    // search for a mesh with common shirt names
+    model.traverse(obj => {
+      if (obj.isMesh) {
+        const n = (obj.name || '').toLowerCase();
+        if (n.includes('shirt') || n.includes('tshirt') || n.includes('top') || n.includes('torso')) {
+          shirtMesh = obj;
+        }
+      }
+    });
+
+    // fallback: first mesh in the model
+    if (!shirtMesh) {
+      model.traverse(obj => {
+        if (obj.isMesh && !shirtMesh) shirtMesh = obj;
+      });
+      console.warn('Shirt mesh not explicitly found. Applying texture to first mesh as fallback. For best results use a model where the shirt mesh is named "Shirt".');
+    }
+
+    // Ensure the shirt material can show textures
+    if (shirtMesh && shirtMesh.material) {
+      shirtMesh.material.side = THREE.DoubleSide;
+      shirtMesh.material.needsUpdate = true;
+    }
+
+    // handle animations if any
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(clip => mixer.clipAction(clip).play());
+    }
+
+  }, xhr => {
+    // progress
+    // console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+  }, err => {
+    console.error('Model load error', err);
+    alert('Failed to load model. Check console for details or replace the URL with your own GLB file.');
+  });
+}
+
+// Dispose GLTF resources
+function disposeGltf(gltf) {
+  gltf.scene.traverse(child => {
+    if (child.isMesh) {
+      child.geometry?.dispose();
+      if (child.material) {
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => {
+            m.map?.dispose();
+            m.dispose();
+          });
+        } else {
+          child.material.map?.dispose();
+          child.material.dispose();
+        }
+      }
+    }
+  });
+}
+
+// Apply uploaded image as texture to the shirt mesh (or fallback)
+function applyDesignTexture(imageURL) {
+  if (!shirtMesh) {
+    alert('No shirt mesh detected yet. Texture will be applied to the model when it is available.');
   }
-  const imgEl = createDesignImage(lastLoadedImageData);
-  designArea.appendChild(imgEl.wrapper);
-  setSelected(imgEl.wrapper);
+
+  const loader = new THREE.TextureLoader();
+  // Enable crossOrigin to support data URLs
+  loader.crossOrigin = '';
+
+  loader.load(imageURL, (tex) => {
+    // set texture parameters
+    const wrapMode = document.getElementById('wrapMode').value;
+    if (wrapMode === 'repeat') {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(parseFloat(document.getElementById('scaleFactor').value), parseFloat(document.getElementById('scaleFactor').value));
+    } else if (wrapMode === 'fit' || wrapMode === 'stretch') {
+      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+      // scaleFactor still controls repetition factor if user wants
+      const s = parseFloat(document.getElementById('scaleFactor').value);
+      tex.repeat.set(1/s, 1/s);
+    }
+
+    tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    // store previous texture to dispose it later
+    if (currentTexture) currentTexture.dispose();
+    currentTexture = tex;
+
+    if (shirtMesh && shirtMesh.material) {
+      // if the material is an array (multi-material), try to set for all
+      if (Array.isArray(shirtMesh.material)) {
+        shirtMesh.material.forEach(m => { m.map = tex; m.needsUpdate = true; });
+      } else {
+        shirtMesh.material.map = tex;
+        shirtMesh.material.needsUpdate = true;
+
+        // If user selected "stretch", adjust texture transform to fill
+        if (document.getElementById('wrapMode').value === 'stretch') {
+          // some models support texture transform; not all. Attempt basic transform:
+          shirtMesh.material.map.repeat.set(1, 1);
+          shirtMesh.material.map.offset.set(0, 0);
+        }
+      }
+      console.log('Applied design texture to mesh:', shirtMesh.name || shirtMesh.id);
+    } else {
+      // fallback: apply to first mesh found in scene
+      const firstMesh = scene.children.find(c => c.isMesh || (c.children && c.children.find(ch => ch.isMesh)));
+      if (firstMesh) {
+        if (firstMesh.isMesh) {
+          firstMesh.material.map = tex;
+          firstMesh.material.needsUpdate = true;
+        } else {
+          const fm = firstMesh.children.find(ch => ch.isMesh);
+          if (fm) { fm.material.map = tex; fm.material.needsUpdate = true; }
+        }
+      }
+    }
+  }, undefined, err => {
+    console.error('Texture load error', err);
+    alert('Failed to load the uploaded image as a texture.');
+  });
+}
+
+/* UI wiring */
+document.getElementById('maleBtn').addEventListener('click', () => {
+  activeModelType = 'male';
+  loadModel(MODEL_URLS.male);
+});
+document.getElementById('femaleBtn').addEventListener('click', () => {
+  activeModelType = 'female';
+  loadModel(MODEL_URLS.female);
 });
 
-/* Add text element */
-addTextBtn.addEventListener('click', ()=>{
-  const txt = textInput.value.trim();
-  if(!txt) return alert('Type some text first.');
-  const el = createTextElement(txt, parseInt(fontSizeRange.value,10));
-  designArea.appendChild(el.wrapper);
-  setSelected(el.wrapper);
+document.getElementById('designInput').addEventListener('change', (ev) => {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  applyDesignTexture(url);
 });
 
-/* Clear all design elements */
-clearBtn.addEventListener('click', ()=>{
-  if(!confirm('Clear all design elements?')) return;
-  designArea.innerHTML = '';
-  selectedEl = null;
-});
-
-/* Download using html2canvas */
-downloadBtn.addEventListener('click', async ()=>{
-  // show a quick highlight border (optional)
-  const exportArea = document.getElementById('stage');
-  downloadBtn.disabled = true;
-  downloadBtn.textContent = 'Rendering...';
+document.getElementById('screenshotBtn').addEventListener('click', () => {
+  // export current canvas to PNG
   try {
-    // html2canvas - capture the central stage
-    const canvas = await html2canvas(exportArea, {backgroundColor: null, scale: 2, useCORS: true});
-    const dataUrl = canvas.toDataURL('image/png');
+    const data = renderer.domElement.toDataURL('image/png');
     const a = document.createElement('a');
-    a.href = dataUrl;
+    a.href = data;
     a.download = 'tshirt-design.png';
     document.body.appendChild(a);
     a.click();
     a.remove();
-  } catch(err){
-    alert('Export failed: '+err.message);
+  } catch (err) {
     console.error(err);
-  } finally {
-    downloadBtn.disabled = false;
-    downloadBtn.textContent = 'Download PNG';
+    alert('Export failed. Check console for details.');
   }
 });
 
-/* ---------- Element creation helpers ---------- */
-
-/* Utility to create a design image element (draggable, rotatable, scalable) */
-function createDesignImage(dataUrl){
-  const wrapper = document.createElement('div');
-  wrapper.className = 'design-layer';
-  wrapper.style.width = '220px';
-  wrapper.style.height = '220px';
-  wrapper.style.left = '50%';
-  wrapper.style.top = '40%';
-  wrapper.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)';
-  wrapper.style.pointerEvents = 'auto';
-
-  const img = document.createElement('img');
-  img.src = dataUrl;
-  img.className = 'design-img';
-  img.style.width = '100%';
-  img.style.height = '100%';
-  img.style.objectFit = 'contain';
-  wrapper.appendChild(img);
-
-  attachInteraction(wrapper);
-  return {wrapper, img};
-}
-
-/* Utility to create text element */
-function createTextElement(text, size=36){
-  const wrapper = document.createElement('div');
-  wrapper.className = 'design-layer';
-  wrapper.style.width = 'auto';
-  wrapper.style.height = 'auto';
-  wrapper.style.left = '50%';
-  wrapper.style.top = '50%';
-  wrapper.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)';
-  wrapper.style.pointerEvents = 'auto';
-
-  const span = document.createElement('div');
-  span.className = 'txt-el';
-  span.contentEditable = true;
-  span.innerText = text;
-  span.style.fontSize = size+'px';
-  span.style.color = '#000';
-  span.style.background = 'rgba(255,255,255,0.85)';
-  span.style.pointerEvents = 'auto';
-  span.style.userSelect = 'text';
-  wrapper.appendChild(span);
-
-  attachInteraction(wrapper);
-  return {wrapper, span};
-}
-
-/* ---------- Interaction: drag, rotate, scale ---------- */
-
-function attachInteraction(wrapper){
-  // Create handles
-  const rotateHandle = document.createElement('div');
-  rotateHandle.className = 'handle rotate';
-  rotateHandle.innerText = '⤾';
-  rotateHandle.title = 'Rotate';
-  wrapper.appendChild(rotateHandle);
-
-  const scaleHandle = document.createElement('div');
-  scaleHandle.className = 'handle scale';
-  scaleHandle.innerText = '⇲';
-  scaleHandle.title = 'Scale';
-  wrapper.appendChild(scaleHandle);
-
-  // Show dashed box on select
-  const box = document.createElement('div');
-  box.className = 'element-box';
-  wrapper.appendChild(box);
-
-  // Basic style: make pointer events work
-  wrapper.addEventListener('pointerdown', (e)=>{
-    e.stopPropagation();
-    setSelected(wrapper);
-    // bring to front
-    wrapper.style.zIndex = 1000;
-    startDrag(e, wrapper);
-  });
-
-  // rotate
-  rotateHandle.addEventListener('pointerdown', (e)=>{
-    e.stopPropagation();
-    setSelected(wrapper);
-    startRotate(e, wrapper);
-  });
-
-  // scale
-  scaleHandle.addEventListener('pointerdown', (e)=>{
-    e.stopPropagation();
-    setSelected(wrapper);
-    startScale(e, wrapper);
-  });
-
-  // double-click on text to edit
-  const editable = wrapper.querySelector('[contenteditable]');
-  if(editable){
-    editable.addEventListener('dblclick', e=>{
-      e.stopPropagation();
-      editable.focus();
-    });
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!shirtMesh) return alert('No shirt mesh loaded yet.');
+  if (Array.isArray(shirtMesh.material)) {
+    shirtMesh.material.forEach(m => { if (m.map) { m.map.dispose(); m.map = null; m.needsUpdate = true; }});
+  } else {
+    if (shirtMesh.material.map) { shirtMesh.material.map.dispose(); shirtMesh.material.map = null; shirtMesh.material.needsUpdate = true; }
   }
-}
+  if (currentTexture) { currentTexture.dispose(); currentTexture = null; }
+  document.getElementById('designInput').value = '';
+});
 
-function setSelected(el){
-  // deselect previously
-  if(selectedEl && selectedEl !== el){
-    selectedEl.style.outline = 'none';
-    const oldBox = selectedEl.querySelector('.element-box');
-    if(oldBox) oldBox.style.display = 'none';
-    const oldHandles = selectedEl.querySelectorAll('.handle');
-    oldHandles.forEach(h=>h.style.display = 'none');
-    selectedEl.style.zIndex = '';
+/* autorotate toggle */
+document.getElementById('autorotate').addEventListener('change', (e) => {
+  autoRotate = e.target.checked;
+});
+let autoRotate = document.getElementById('autorotate').checked;
+
+/* exposure slider -> modify renderer tone mapping exposure */
+document.getElementById('exposure').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  renderer.toneMappingExposure = v;
+});
+
+/* scaleFactor uses to modify the texture repeat on change */
+document.getElementById('scaleFactor').addEventListener('input', () => {
+  const s = parseFloat(document.getElementById('scaleFactor').value);
+  if (currentTexture) {
+    currentTexture.repeat.set(s, s);
+    currentTexture.needsUpdate = true;
   }
-  selectedEl = el;
-  if(selectedEl){
-    selectedEl.style.outline = '2px solid rgba(6,182,212,0.45)';
-    const box = selectedEl.querySelector('.element-box');
-    if(box){
-      box.style.display = 'block';
-      box.style.left = '0';box.style.top='0';box.style.right='0';box.style.bottom='0';
+});
+
+/* animate */
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  if (mixer) mixer.update(dt);
+  if (controls) {
+    controls.update();
+    if (autoRotate) {
+      // auto-rotate around Y
+      scene.rotation.y += 0.002 * (clock.getDelta() * 60);
     }
-    const handles = selectedEl.querySelectorAll('.handle');
-    handles.forEach(h=>h.style.display = 'flex');
   }
+  renderer.render(scene, camera);
 }
 
-/* Dragging */
-function startDrag(e, el){
-  const start = {x: e.clientX, y: e.clientY};
-  const rect = el.getBoundingClientRect();
-  const parentRect = designArea.getBoundingClientRect();
-
-  // compute current translate values
-  const computed = window.getComputedStyle(el);
-  // transform: translate(-50%,-50%) rotate(Adeg) scale(s)
-  // We'll maintain left/top in percentages relative to designArea.
-  const leftPx = rect.left - parentRect.left + rect.width/2;
-  const topPx  = rect.top - parentRect.top + rect.height/2;
-
-  function onMove(ev){
-    const dx = ev.clientX - start.x;
-    const dy = ev.clientY - start.y;
-    const newCenterX = leftPx + dx;
-    const newCenterY = topPx + dy;
-    const pctX = (newCenterX / parentRect.width) * 100;
-    const pctY = (newCenterY / parentRect.height) * 100;
-    el.style.left = pctX + '%';
-    el.style.top = pctY + '%';
-    el.style.transform = el.style.transform || 'translate(-50%,-50%) rotate(0deg) scale(1)';
-    el.classList.add('grabbing');
-  }
-
-  function onUp(){
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    el.classList.remove('grabbing');
-  }
-
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
+/* handle resizing */
+function onWindowResize() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
 }
 
-/* Rotation (around element center) */
-function startRotate(e, el){
-  const parentRect = designArea.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const center = {x: elRect.left + elRect.width/2, y: elRect.top + elRect.height/2};
-  const startAngle = getRotation(el); // degrees
+/* init + load default model */
+init();
+loadModel(MODEL_URLS.male);
 
-  function onMove(ev){
-    const angle = Math.atan2(ev.clientY - center.y, ev.clientX - center.x) * 180/Math.PI;
-    // calculate difference between start and angle (keeping a smoother rotation)
-    // We want the rotation to follow the pointer angle; offset by -90 to have intuitive handle.
-    const newAngle = angle + 90;
-    el.style.transform = setTransform(el, {rotation: newAngle});
-  }
-
-  function onUp(){
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-  }
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
-}
-
-/* Scaling */
-function startScale(e, el){
-  e.preventDefault();
-  const parentRect = designArea.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const center = {x: elRect.left + elRect.width/2, y: elRect.top + elRect.height/2};
-  const startDist = Math.hypot(e.clientX - center.x, e.clientY - center.y);
-  const startScale = getScale(el);
-
-  function onMove(ev){
-    const dist = Math.hypot(ev.clientX - center.x, ev.clientY - center.y);
-    const ratio = dist / startDist;
-    const newScale = Math.max(0.2, startScale * ratio);
-    el.style.transform = setTransform(el, {scale: newScale});
-  }
-  function onUp(){
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-  }
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
-}
-
-/* Transform helpers: read and write rotate/scale keeping translate(-50%,-50%) */
-function getRotation(el){
-  const t = el.style.transform || window.getComputedStyle(el).transform;
-  if(!t || t === 'none') return 0;
-  // it might be like "translate(-50%,-50%) rotate(12deg) scale(1.2)"
-  const m = t.match(/rotate\((-?\d+\.?\d*)deg\)/);
-  return m ? parseFloat(m[1]) : 0;
-}
-function getScale(el){
-  const t = el.style.transform || window.getComputedStyle(el).transform;
-  const m = t.match(/scale\(([\d\.]+)\)/);
-  return m ? parseFloat(m[1]) : 1;
-}
-function setTransform(el, {rotation=null, scale=null}){
-  const oldRot = getRotation(el);
-  const oldScale = getScale(el);
-  const rot = rotation === null ? oldRot : rotation;
-  const s = scale === null ? oldScale : scale;
-  // preserve translate(-50%,-50%)
-  return `translate(-50%,-50%) rotate(${rot}deg) scale(${s})`;
-}
-
-/* Select mode (placeholder if you add separate tools) */
-function selectMode(){ /* no-op */ }
-
-/* Deselect when clicking outside */
-designArea.addEventListener('pointerdown', e=>{
-  // if clicked on empty designArea, deselect
-  if(e.target === designArea){
-    if(selectedEl){
-      selectedEl.style.outline = 'none';
-      const box = selectedEl.querySelector('.element-box');
-      if(box) box.style.display = 'none';
-      const oldHandles = selectedEl.querySelectorAll('.handle');
-      oldHandles.forEach(h=>h.style.display = 'none');
-      selectedEl.style.zIndex = '';
-    }
-    selectedEl = null;
-  }
-});
-
-/* Keep font size slider synced with selected text element */
-fontSizeRange.addEventListener('input', ()=>{
-  if(!selectedEl) return;
-  const txt = selectedEl.querySelector('[contenteditable]');
-  if(txt) txt.style.fontSize = fontSizeRange.value + 'px';
-});
-
-/* Make sure newly created elements show handles initially */
-document.addEventListener('click', e=>{
-  if(e.target.closest('.design-layer')){
-    setSelected(e.target.closest('.design-layer'));
-  }
-});
-
-/* Prevent default dragging of images */
-document.addEventListener('dragstart', e=> e.preventDefault());
-
-/* End of script */
 </script>
 </body>
 </html>
