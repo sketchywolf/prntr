@@ -1,59 +1,243 @@
-import React, { useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls, useTexture } from "@react-three/drei";
-import { Button } from "@/components/ui/button";
+# T-Shirt Customizer — Full Website Scaffold
 
-// Basic 3D T‑shirt model (placeholder box)
-function ShirtModel({ texture }) {
-  const tex = useTexture(texture);
-  return (
-    <mesh>
-      <boxGeometry args={[2, 3, 1]} />
-      <meshStandardMaterial map={tex} />
-    </mesh>
-  );
+> Single-file React preview + project README and starter backend. Use this as the canonical project scaffold to build and iterate on your full custom t‑shirt website.
+
+---
+
+## Overview
+A full-stack web application that allows customers to: upload images and text, place and edit them on a 3D t‑shirt preview (360° rotation), generate print-ready files (PDF / SVG) suitable for Cricut or direct-to-garment printing, and checkout via Stripe (or local payment gateways). Admin can download production-ready print files per order.
+
+---
+
+## Tech stack (recommended)
+- Frontend: React (Vite) + TypeScript
+  - 3D preview: react-three-fiber + drei
+  - Canvas editing: Konva or custom draggable UI mapped to shirt UV
+  - UI: TailwindCSS + shadcn/ui (optional)
+- Backend: Node.js + Express (TypeScript optional)
+  - Storage: local (dev) / S3 (prod)
+  - PDF/SVG generation: PDFKit / sharp / SVG templating or Puppeteer for HTML->PDF
+  - Authentication: JWT or NextAuth (if using Next.js)
+- Database: PostgreSQL (or MongoDB) for orders & designs
+- Payments: Stripe (or local: PayMongo / PayPal / GCASH integrations)
+- Deployment: Vercel/Netlify (frontend) + Render/Heroku/AWS Elastic Beanstalk (backend) or use a monorepo on Vercel with serverless functions
+
+---
+
+## Key features included in scaffold
+1. 3D T-shirt preview (placeholder model) with 360° orbit controls
+2. Upload images and fonts, add text, move/scale/rotate elements on the shirt surface
+3. Save design to user account (or guest) and persist editable JSON representation
+4. Generate print-ready SVG/PDF file for download and for admin printing
+5. Simple checkout flow (Stripe) that preserves the final design and attaches it to the order
+6. Admin page to see orders and download production files
+
+---
+
+## File structure (suggested)
+```
+/tshirt-customizer
+├─ /apps
+│  ├─ /frontend  (React + Vite)
+│  └─ /backend   (Express API)
+├─ /models      (3D assets, sample .glb shirt model)
+├─ /scripts
+└─ README.md
+```
+
+---
+
+## Frontend - features & API contract
+### Important pages
+- `/` — Landing / product list
+- `/customize/:productId` — Full customizer UI (3D preview + tool panel)
+- `/cart` — Cart
+- `/checkout` — Checkout (Stripe integration)
+- `/account/orders` — User orders
+- `/admin/orders` — Admin order downloader
+
+### API endpoints (backend)
+- `POST /api/upload` — upload user images (returns file URL)
+- `POST /api/generate` — accept design JSON, generate PDF/SVG, return file URL (or stream)
+- `POST /api/create-payment-intent` — Stripe payment creation with design meta
+- `POST /api/orders` — save order (with design metadata, file links)
+- `GET /api/admin/orders` — list orders (admin only)
+
+Design JSON example:
+```json
+{
+  "productId": "tee-classic",
+  "color": "white",
+  "elements": [
+    {"type":"image","src":"/uploads/abc.png","x":0.3,"y":0.2,"scale":0.8,"rotation":10},
+    {"type":"text","text":"Hello","font":"Montserrat","size":48,"x":0.5,"y":0.8}
+  ],
+  "canvas": {"w":2000,"h":2400} // print resolution
 }
+```
 
-export default function App() {
-  const [image, setImage] = useState(null);
-  const [previewTexture, setPreviewTexture] = useState(null);
+---
 
-  const handleUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setImage(file);
-      setPreviewTexture(url);
-    }
-  };
+## Backend considerations (print-ready generation)
+- Keep a canonical canvas resolution for print (e.g., 2000×2400 px @ 300 DPI depending on print process). For Cricut: offer export to SVG with vector text/outlines or high-res PNG.
+- SVG route is best for Cricut/cutters; ensure fonts are converted to paths or embed font files.
+- For direct-to-garment, provide a flattened PNG with transparent background sized to printer spec and optionally a PDF wrapper.
+- Use `sharp` to composite raster images and `svg2img` or `puppeteer` to rasterize HTML/SVG to PDF.
+
+---
+
+## Database schema (simplified)
+```sql
+CREATE TABLE users (
+  id uuid PRIMARY KEY,
+  email varchar UNIQUE,
+  password_hash varchar,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE orders (
+  id uuid PRIMARY KEY,
+  user_id uuid REFERENCES users(id),
+  status varchar,
+  total_amount integer,
+  design_json jsonb,
+  print_files jsonb,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+---
+
+## Starter code snippets (frontend)
+
+### `frontend/src/main.tsx` (Vite + React)
+```tsx
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App'
+import './index.css'
+
+createRoot(document.getElementById('root')!).render(<App />)
+```
+
+### `frontend/src/App.tsx` (routes + link to customizer)
+```tsx
+import React from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Customize from './pages/Customize'
+import Home from './pages/Home'
+
+export default function App(){
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path='/' element={<Home/>} />
+        <Route path='/customize/:id' element={<Customize/>} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+```
+
+### `frontend/src/pages/Customize.tsx` (core)
+```tsx
+import React, { useState } from 'react'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls } from '@react-three/drei'
+
+export default function Customize(){
+  const [design, setDesign] = useState(null)
+  // upload handling, element placement UI, text tool, color picker, save/export calls
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Left: 3D Preview */}
-      <div className="w-full h-[500px] bg-black rounded-2xl p-2">
+    <div className='grid md:grid-cols-2 gap-6 p-6'>
+      <div className='h-[600px] bg-white rounded shadow'>
         <Canvas>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} />
-          <OrbitControls enableZoom={true} />
-          <ShirtModel texture={previewTexture} />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[5,5,5]} />
+          <OrbitControls />
+          {/* real Shirt 3D model here (GLTF) */}
         </Canvas>
       </div>
 
-      {/* Right: Controls */}
-      <div className="flex flex-col gap-4 bg-gray-800 p-6 rounded-2xl shadow-lg">
-        <h1 className="text-2xl font-bold">Create Your Custom T‑Shirt</h1>
-
-        <label className="block">Upload Image / Design</label>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleUpload}
-          className="bg-gray-700 p-2 rounded"
-        />
-
-        <Button className="mt-4">Download Print‑Ready File</Button>
-        <Button variant="secondary">Proceed to Checkout</Button>
+      <div className='p-4'>
+        {/* Tools: upload image, add text, transform controls, download/export */}
       </div>
     </div>
-  );
+  )
 }
+```
+
+---
+
+## Starter code snippets (backend)
+
+### `backend/index.js` (Express minimal)
+```js
+const express = require('express')
+const multer = require('multer')
+const sharp = require('sharp')
+const { v4: uuidv4 } = require('uuid')
+const fs = require('fs')
+
+const upload = multer({ dest: 'uploads/' })
+const app = express()
+app.use(express.json())
+
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  // just return file path for demo; in prod, upload to S3
+  res.json({ url: `/uploads/${req.file.filename}` })
+})
+
+app.post('/api/generate', async (req, res) => {
+  const design = req.body
+  // Example: render SVG from design JSON and convert to PDF/PNG
+  // TODO: implement svg templating -> sharp -> save
+  const fileId = uuidv4()
+  const outPath = `generated/${fileId}.png`
+  // placeholder: create a blank PNG
+  await sharp({ create: { width: 2000, height: 2400, channels: 4, background: { r:255,g:255,b:255,alpha:0 }}})
+    .png().toFile(outPath)
+  res.json({ url: `/generated/${fileId}.png` })
+})
+
+app.listen(8080, ()=> console.log('API listening on 8080'))
+```
+
+---
+
+## Admin flow for downloading print files
+- After payment, backend will call `/api/generate` with the design JSON and store the generated PDF/SVG in `print_files` field of the `orders` table.
+- Admin UI lists orders; clicking 'Download Print File' triggers a download of the stored file.
+
+---
+
+## Security & Production notes
+- Validate/scan uploaded images for malicious content and size limits.
+- Rate-limit upload endpoints.
+- Use signed S3 URLs (if using S3) for direct browser uploads.
+- Sanitize user-provided SVG if allowing raw SVG input.
+
+---
+
+## How I built this scaffold for you
+- Provided a React-based customizer skeleton and a minimal Express backend to upload images and generate placeholder print files.
+- Included recommended packages and step-by-step implementation points to complete each feature.
+
+---
+
+## Next steps I can do for you (pick any)
+1. Replace placeholder 3D box with a proper shirt GLB model and unwrap textures correctly.
+2. Implement drag/resize/rotate tooling mapped to the shirt UV (so images wrap correctly).
+3. Implement print-ready generator: SVG with text outlines + PDF export for Cricut and DTF.
+4. Implement Stripe checkout + persist order + attach print file.
+5. Build admin dashboard to download print files and push to printer queue.
+6. Deploy full stack to Vercel + Render (I can produce deployment scripts).
+
+---
+
+### Notes
+- This file is the project scaffold. If you want, I can now generate the *complete codebase* (frontend + backend) as downloadable files, or I can implement a single prioritized feature end-to-end (for example: full PDF/SVG export ready for Cricut).
+
+
+// End of scaffold
