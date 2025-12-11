@@ -44,7 +44,7 @@ let scene, camera, renderer, controls;
 let tshirtMesh = null;
 let currentTexture = null;
 
-// 3D scene init
+// Initialize 3D scene
 function init() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0xf3f3f3);
@@ -76,46 +76,54 @@ function init() {
   animate();
 }
 
-// Load T-shirt GLB
+// Load 3D T-shirt GLB
 function loadTshirtModel() {
   const loader = new THREE.GLTFLoader();
-  const url = './models/basic_t-shirt.glb'; // replace with actual T-shirt model
+  const url = './models/basic_t-shirt.glb'; // <-- your GLB file path
 
   loader.load(url, gltf => {
     tshirtMesh = gltf.scene;
     tshirtMesh.scale.set(1.5,1.5,1.5);
     scene.add(tshirtMesh);
 
-    // List all meshes and their names
+    // Log all mesh names for reference
     console.log("Meshes inside the GLB:");
     tshirtMesh.traverse(obj => {
-        if(obj.isMesh) {
-            console.log("Mesh name:", obj.name);
-        }
+        if(obj.isMesh) console.log("Mesh name:", obj.name);
     });
-}, undefined, err => console.error(err));
+  }, undefined, err => console.error("Error loading GLB:", err));
 }
 
-// Apply uploaded design as texture
+// Upload design and apply to shirt mesh
 document.getElementById('designInput').addEventListener('change', (ev)=>{
   const f = ev.target.files[0];
   if(!f) return;
+
   const url = URL.createObjectURL(f);
   const loader = new THREE.TextureLoader();
   loader.crossOrigin = '';
   loader.load(url, tex => {
     if(currentTexture) currentTexture.dispose();
     currentTexture = tex;
-    if(tshirtMesh) tshirtMesh.traverse(obj=>{
-      if(obj.isMesh){
-        obj.material.map = tex;
-        obj.material.needsUpdate = true;
-      }
-    });
+
+    if(tshirtMesh) {
+      tshirtMesh.traverse(obj=>{
+        // Only apply texture to meshes whose name includes "shirt"
+        if(obj.isMesh && obj.name.toLowerCase().includes('shirt')){
+          obj.material.map = tex;
+          obj.material.needsUpdate = true;
+
+          // Optional: adjust texture scaling
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(1,1);
+        }
+      });
+    }
   });
 });
 
-// Download canvas as PNG
+// Download 3D canvas as PNG
 document.getElementById('screenshotBtn').addEventListener('click', ()=>{
   const data = renderer.domElement.toDataURL('image/png');
   const a = document.createElement('a');
@@ -124,12 +132,16 @@ document.getElementById('screenshotBtn').addEventListener('click', ()=>{
   a.click();
 });
 
-// Reset design
+// Reset uploaded design
 document.getElementById('resetBtn').addEventListener('click', ()=>{
   if(tshirtMesh){
     tshirtMesh.traverse(obj=>{
       if(obj.isMesh){
-        if(obj.material.map){ obj.material.map.dispose(); obj.material.map=null; obj.material.needsUpdate=true; }
+        if(obj.material.map){ 
+          obj.material.map.dispose(); 
+          obj.material.map=null; 
+          obj.material.needsUpdate=true; 
+        }
       }
     });
   }
