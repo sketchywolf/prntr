@@ -1,409 +1,150 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>3D T-Shirt Designer — Plain HTML</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D T-Shirt Designer</title>
 
-  <!-- Three.js (r152) and loaders from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Three.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
 
-  <style>
-    :root{--bg:#0b1220;--panel:#071021;--accent:#06b6d4}
-    *{box-sizing:border-box;font-family:Inter,system-ui,Arial}
-    body{margin:0;background:linear-gradient(180deg,#071021,#04101a);color:#e6eef6}
-    header{padding:18px;text-align:center;background:#02111a;color:#e6eef6}
-    .wrap{max-width:1200px;margin:18px auto;display:flex;gap:18px;padding:12px}
-    .viewer{flex:1;background:#0b1220;border-radius:10px;padding:8px;display:flex;flex-direction:column;align-items:center}
-    #canvasContainer{width:100%;height:680px;border-radius:8px;overflow:hidden;background:#111}
-    .panel{width:360px;background:#071021;padding:16px;border-radius:10px;display:flex;flex-direction:column;gap:12px}
-    label{font-size:13px;color:#9fb6cf}
-    input[type=file]{color:transparent}
-    button{background:var(--accent);border:none;padding:10px;border-radius:8px;color:#012;cursor:pointer}
-    select,input[type=range]{width:100%}
-    .small{font-size:13px;color:#9fb6cf}
-    .muted{font-size:12px;color:#95b6ce}
-    .row{display:flex;gap:8px}
-    .row button{flex:1}
-    footer{color:#9fb6cf;font-size:13px;text-align:center;padding:8px}
-    @media (max-width:980px){.wrap{flex-direction:column}.panel{width:100%}}
-  </style>
+<style>
+body { margin:0; font-family:Arial; background:#f3f3f3; }
+header { text-align:center; padding:20px; background:#222; color:#fff; font-size:24px; }
+.wrap { display:flex; flex-wrap:wrap; gap:20px; padding:20px; max-width:1200px; margin:auto; }
+.viewer { flex:1; background:#fff; border-radius:10px; padding:10px; display:flex; flex-direction:column; align-items:center; }
+#canvasContainer { width:100%; height:600px; border-radius:8px; overflow:hidden; background:#eee; }
+.panel { width:300px; background:#fff; padding:16px; border-radius:10px; display:flex; flex-direction:column; gap:12px; }
+button { background:#06b6d4; border:none; padding:10px; border-radius:6px; color:#012; cursor:pointer; }
+input[type=file] { cursor:pointer; }
+</style>
 </head>
 <body>
-  <header>
-    <strong>3D T-Shirt Designer</strong> — Plain HTML (upload design → apply to shirt mesh → export PNG)
-  </header>
 
-  <div class="wrap">
-    <!-- 3D VIEWER -->
-    <div class="viewer">
-      <div id="canvasContainer"></div>
-      <div style="display:flex;gap:8px;margin-top:8px;width:100%;align-items:center">
-        <label class="small" style="flex:1">Auto rotate</label>
-        <input id="autorotate" type="checkbox" checked>
-        <label class="small" style="width:110px;text-align:right">Exposure</label>
-        <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1" style="width:120px">
-      </div>
-    </div>
+<header>3D T-Shirt Designer</header>
 
-    <!-- CONTROLS -->
-    <div class="panel">
-      <div>
-        <label>Choose mannequin (male / female)</label>
-        <div class="row" style="margin-top:8px">
-          <button id="maleBtn">Male Dummy</button>
-          <button id="femaleBtn">Female Dummy</button>
-        </div>
-        <div class="muted" style="margin-top:6px">Tip: use models with a separate shirt mesh named <code>Shirt</code> (or similar).</div>
-      </div>
-
-      <div>
-        <label>Upload your design (PNG recommended, transparent background OK)</label>
-        <input id="designInput" type="file" accept="image/*">
-        <div class="small muted">This image will be used as the shirt texture.</div>
-      </div>
-
-      <div>
-        <label>Mapping / Options</label>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <select id="wrapMode">
-            <option value="fit">Fit (centered)</option>
-            <option value="repeat">Repeat</option>
-            <option value="stretch">Stretch to cover</option>
-          </select>
-          <input id="scaleFactor" type="range" min="0.2" max="3" step="0.01" value="1" title="Scale">
-        </div>
-        <div class="small muted">Use scale to change how big the design appears on the shirt (if the model supports UVs).</div>
-      </div>
-
-      <div>
-        <label>Preview & Export</label>
-        <div class="row" style="margin-top:8px">
-          <button id="screenshotBtn">Download PNG</button>
-          <button id="resetBtn">Reset Texture</button>
-        </div>
-      </div>
-
-      <div>
-        <label>Model sources / notes</label>
-        <div class="small muted">
-          Demo uses remote example models. For best results, replace the GLB files with mannequins that have a shirt mesh and proper UVs. Put them in <code>/models/male.glb</code> and <code>/models/female.glb</code>.
-        </div>
-      </div>
-    </div>
+<div class="wrap">
+  <div class="viewer">
+    <div id="canvasContainer"></div>
   </div>
 
-  <footer>If the design doesn't wrap as expected, try a different mannequin GLB that includes a shirt mesh with UV mapping named <code>Shirt</code>.</footer>
+  <div class="panel">
+    <label>Upload Design:</label>
+    <input type="file" id="designInput" accept="image/*">
+    <button id="screenshotBtn">Download PNG</button>
+    <button id="resetBtn">Reset Design</button>
+  </div>
+</div>
 
 <script>
-/* ------------------------------
-   3D viewer using Three.js (plain JS)
-   - load GLB mannequin
-   - apply uploaded image as texture to mesh named 'Shirt' or fallback
-   - orbit controls + auto-rotate
-   - canvas screenshot export
-   ------------------------------ */
-
 const container = document.getElementById('canvasContainer');
-let scene, camera, renderer, controls, mixer, clock, currentGltf;
-let shirtMesh = null;
+let scene, camera, renderer, controls;
+let tshirtMesh = null;
 let currentTexture = null;
 
-// Default demo model URLs (may not have a 'Shirt' mesh).
-// Recommended: host your own GLB files with a shirt mesh named 'Shirt' and place under /models/.
-const MODEL_URLS = {
-  male: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb',
-  female: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/Flamingo.glb'
-};
-
-// If you want to use local models, change to: '/models/male.glb', '/models/female.glb'
-let activeModelType = 'male';
-
-// Init scene
+// 3D scene init
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0b1220);
-
-  clock = new THREE.Clock();
+  scene.background = new THREE.Color(0xf3f3f3);
 
   const width = container.clientWidth;
   const height = container.clientHeight;
-  camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-  camera.position.set(0, 1.6, 3.2);
+  camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 1000);
+  camera.position.set(0, 1.5, 3);
 
-  // Lights
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
-  hemi.position.set(0, 1, 0);
-  scene.add(hemi);
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+  hemiLight.position.set(0, 1, 0);
+  scene.add(hemiLight);
 
-  const dir = new THREE.DirectionalLight(0xffffff, 1.0);
-  dir.position.set(5, 10, 7);
-  scene.add(dir);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5,10,5);
+  scene.add(dirLight);
 
-  // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(window.devicePixelRatio || 1);
-  renderer.setSize(width, height);
-  container.innerHTML = '';
+  renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+  renderer.setSize(width,height);
   container.appendChild(renderer.domElement);
 
-  // Controls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 1.2, 0);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.06;
-
-  // Ground (soft)
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x081018, roughness: 0.9, metalness: 0.1 });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = 0;
-  scene.add(ground);
 
   window.addEventListener('resize', onWindowResize);
 
-  // Start animation loop
+  loadTshirtModel();
+
   animate();
 }
 
-// Load GLB model (male/female)
-function loadModel(url) {
+// Load T-shirt GLB
+function loadTshirtModel() {
   const loader = new THREE.GLTFLoader();
-
-  // dispose previous
-  if (currentGltf) {
-    scene.remove(currentGltf.scene);
-    disposeGltf(currentGltf);
-    currentGltf = null;
-    shirtMesh = null;
-  }
+  const url = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r152/examples/models/gltf/RobotExpressive.glb'; // replace with actual T-shirt model
 
   loader.load(url, gltf => {
-    currentGltf = gltf;
-    const model = gltf.scene;
-    model.position.set(0, 0, 0);
-    model.scale.set(1.0, 1.0, 1.0);
-    scene.add(model);
+    tshirtMesh = gltf.scene;
+    tshirtMesh.scale.set(1.5,1.5,1.5);
+    scene.add(tshirtMesh);
+  }, undefined, err=>console.error(err));
+}
 
-    // search for a mesh with common shirt names
-    model.traverse(obj => {
-      if (obj.isMesh) {
-        const n = (obj.name || '').toLowerCase();
-        if (n.includes('shirt') || n.includes('tshirt') || n.includes('top') || n.includes('torso')) {
-          shirtMesh = obj;
-        }
+// Apply uploaded design as texture
+document.getElementById('designInput').addEventListener('change', (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  const loader = new THREE.TextureLoader();
+  loader.crossOrigin = '';
+  loader.load(url, tex => {
+    if(currentTexture) currentTexture.dispose();
+    currentTexture = tex;
+    if(tshirtMesh) tshirtMesh.traverse(obj=>{
+      if(obj.isMesh){
+        obj.material.map = tex;
+        obj.material.needsUpdate = true;
       }
     });
-
-    // fallback: first mesh in the model
-    if (!shirtMesh) {
-      model.traverse(obj => {
-        if (obj.isMesh && !shirtMesh) shirtMesh = obj;
-      });
-      console.warn('Shirt mesh not explicitly found. Applying texture to first mesh as fallback. For best results use a model where the shirt mesh is named "Shirt".');
-    }
-
-    // Ensure the shirt material can show textures
-    if (shirtMesh && shirtMesh.material) {
-      shirtMesh.material.side = THREE.DoubleSide;
-      shirtMesh.material.needsUpdate = true;
-    }
-
-    // handle animations if any
-    if (gltf.animations && gltf.animations.length) {
-      mixer = new THREE.AnimationMixer(model);
-      gltf.animations.forEach(clip => mixer.clipAction(clip).play());
-    }
-
-  }, xhr => {
-    // progress
-    // console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-  }, err => {
-    console.error('Model load error', err);
-    alert('Failed to load model. Check console for details or replace the URL with your own GLB file.');
   });
-}
+});
 
-// Dispose GLTF resources
-function disposeGltf(gltf) {
-  gltf.scene.traverse(child => {
-    if (child.isMesh) {
-      child.geometry?.dispose();
-      if (child.material) {
-        if (Array.isArray(child.material)) {
-          child.material.forEach(m => {
-            m.map?.dispose();
-            m.dispose();
-          });
-        } else {
-          child.material.map?.dispose();
-          child.material.dispose();
-        }
+// Download canvas as PNG
+document.getElementById('screenshotBtn').addEventListener('click', ()=>{
+  const data = renderer.domElement.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = data;
+  a.download = 'tshirt-design.png';
+  a.click();
+});
+
+// Reset design
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(tshirtMesh){
+    tshirtMesh.traverse(obj=>{
+      if(obj.isMesh){
+        if(obj.material.map){ obj.material.map.dispose(); obj.material.map=null; obj.material.needsUpdate=true; }
       }
-    }
-  });
-}
-
-// Apply uploaded image as texture to the shirt mesh (or fallback)
-function applyDesignTexture(imageURL) {
-  if (!shirtMesh) {
-    alert('No shirt mesh detected yet. Texture will be applied to the model when it is available.');
+    });
   }
-
-  const loader = new THREE.TextureLoader();
-  // Enable crossOrigin to support data URLs
-  loader.crossOrigin = '';
-
-  loader.load(imageURL, (tex) => {
-    // set texture parameters
-    const wrapMode = document.getElementById('wrapMode').value;
-    if (wrapMode === 'repeat') {
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(parseFloat(document.getElementById('scaleFactor').value), parseFloat(document.getElementById('scaleFactor').value));
-    } else if (wrapMode === 'fit' || wrapMode === 'stretch') {
-      tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-      // scaleFactor still controls repetition factor if user wants
-      const s = parseFloat(document.getElementById('scaleFactor').value);
-      tex.repeat.set(1/s, 1/s);
-    }
-
-    tex.encoding = THREE.sRGBEncoding;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-    // store previous texture to dispose it later
-    if (currentTexture) currentTexture.dispose();
-    currentTexture = tex;
-
-    if (shirtMesh && shirtMesh.material) {
-      // if the material is an array (multi-material), try to set for all
-      if (Array.isArray(shirtMesh.material)) {
-        shirtMesh.material.forEach(m => { m.map = tex; m.needsUpdate = true; });
-      } else {
-        shirtMesh.material.map = tex;
-        shirtMesh.material.needsUpdate = true;
-
-        // If user selected "stretch", adjust texture transform to fill
-        if (document.getElementById('wrapMode').value === 'stretch') {
-          // some models support texture transform; not all. Attempt basic transform:
-          shirtMesh.material.map.repeat.set(1, 1);
-          shirtMesh.material.map.offset.set(0, 0);
-        }
-      }
-      console.log('Applied design texture to mesh:', shirtMesh.name || shirtMesh.id);
-    } else {
-      // fallback: apply to first mesh found in scene
-      const firstMesh = scene.children.find(c => c.isMesh || (c.children && c.children.find(ch => ch.isMesh)));
-      if (firstMesh) {
-        if (firstMesh.isMesh) {
-          firstMesh.material.map = tex;
-          firstMesh.material.needsUpdate = true;
-        } else {
-          const fm = firstMesh.children.find(ch => ch.isMesh);
-          if (fm) { fm.material.map = tex; fm.material.needsUpdate = true; }
-        }
-      }
-    }
-  }, undefined, err => {
-    console.error('Texture load error', err);
-    alert('Failed to load the uploaded image as a texture.');
-  });
-}
-
-/* UI wiring */
-document.getElementById('maleBtn').addEventListener('click', () => {
-  activeModelType = 'male';
-  loadModel(MODEL_URLS.male);
-});
-document.getElementById('femaleBtn').addEventListener('click', () => {
-  activeModelType = 'female';
-  loadModel(MODEL_URLS.female);
+  document.getElementById('designInput').value='';
+  currentTexture=null;
 });
 
-document.getElementById('designInput').addEventListener('change', (ev) => {
-  const f = ev.target.files && ev.target.files[0];
-  if (!f) return;
-  const url = URL.createObjectURL(f);
-  applyDesignTexture(url);
-});
-
-document.getElementById('screenshotBtn').addEventListener('click', () => {
-  // export current canvas to PNG
-  try {
-    const data = renderer.domElement.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = data;
-    a.download = 'tshirt-design.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch (err) {
-    console.error(err);
-    alert('Export failed. Check console for details.');
-  }
-});
-
-document.getElementById('resetBtn').addEventListener('click', () => {
-  if (!shirtMesh) return alert('No shirt mesh loaded yet.');
-  if (Array.isArray(shirtMesh.material)) {
-    shirtMesh.material.forEach(m => { if (m.map) { m.map.dispose(); m.map = null; m.needsUpdate = true; }});
-  } else {
-    if (shirtMesh.material.map) { shirtMesh.material.map.dispose(); shirtMesh.material.map = null; shirtMesh.material.needsUpdate = true; }
-  }
-  if (currentTexture) { currentTexture.dispose(); currentTexture = null; }
-  document.getElementById('designInput').value = '';
-});
-
-/* autorotate toggle */
-document.getElementById('autorotate').addEventListener('change', (e) => {
-  autoRotate = e.target.checked;
-});
-let autoRotate = document.getElementById('autorotate').checked;
-
-/* exposure slider -> modify renderer tone mapping exposure */
-document.getElementById('exposure').addEventListener('input', (e) => {
-  const v = parseFloat(e.target.value);
-  renderer.toneMappingExposure = v;
-});
-
-/* scaleFactor uses to modify the texture repeat on change */
-document.getElementById('scaleFactor').addEventListener('input', () => {
-  const s = parseFloat(document.getElementById('scaleFactor').value);
-  if (currentTexture) {
-    currentTexture.repeat.set(s, s);
-    currentTexture.needsUpdate = true;
-  }
-});
-
-/* animate */
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = clock.getDelta();
-  if (mixer) mixer.update(dt);
-  if (controls) {
-    controls.update();
-    if (autoRotate) {
-      // auto-rotate around Y
-      scene.rotation.y += 0.002 * (clock.getDelta() * 60);
-    }
-  }
-  renderer.render(scene, camera);
-}
-
-/* handle resizing */
-function onWindowResize() {
+function onWindowResize(){
   const w = container.clientWidth;
   const h = container.clientHeight;
-  camera.aspect = w / h;
+  camera.aspect = w/h;
   camera.updateProjectionMatrix();
-  renderer.setSize(w, h, false);
+  renderer.setSize(w,h);
 }
 
-/* init + load default model */
-init();
-loadModel(MODEL_URLS.male);
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene,camera);
+}
 
+init();
 </script>
+
 </body>
 </html>
