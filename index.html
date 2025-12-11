@@ -79,7 +79,7 @@ function init() {
 // Load T-shirt GLB
 function loadTshirtModel() {
   const loader = new THREE.GLTFLoader();
-  const url = './models/tshirt.glb'; // replace with actual T-shirt model
+  const url = './models/basic_tshirt.glb'; // replace with actual T-shirt model
 
   loader.load(url, gltf => {
     tshirtMesh = gltf.scene;
