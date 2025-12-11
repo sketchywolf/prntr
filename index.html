@@ -1,243 +1,555 @@
-# T-Shirt Customizer — Full Website Scaffold
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple T-Shirt Customizer (Pure HTML/JS)</title>
 
-> Single-file React preview + project README and starter backend. Use this as the canonical project scaffold to build and iterate on your full custom t‑shirt website.
+  <!-- html2canvas for PNG export -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
----
+  <style>
+    :root{
+      --bg:#0f1724;
+      --panel:#0b1220;
+      --accent:#06b6d4;
+      --muted:#93c5fd;
+      --card:#0b1220;
+    }
+    *{box-sizing:border-box;font-family:Inter,Segoe UI,system-ui,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,var(--bg),#02111a);color:#e6eef6;padding:20px;display:flex;gap:20px;align-items:flex-start;justify-content:center}
+    .container{max-width:1200px;width:100%;display:grid;grid-template-columns:1fr 380px;gap:20px}
 
-## Overview
-A full-stack web application that allows customers to: upload images and text, place and edit them on a 3D t‑shirt preview (360° rotation), generate print-ready files (PDF / SVG) suitable for Cricut or direct-to-garment printing, and checkout via Stripe (or local payment gateways). Admin can download production-ready print files per order.
+    /* Left: preview stage */
+    .stage-wrap{background:rgba(255,255,255,0.03);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .stage{width:640px;height:640px;background:linear-gradient(180deg,#fff 0%, #f3f4f6 100%);border-radius:20px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;
+      /* perspective for 3D Y-rotation */
+      perspective:1200px;
+      margin:0 auto;
+    }
 
----
+    /* Shirt wrapper that rotates in 3D */
+    .shirt-3d{
+      width:420px;height:520px;position:relative;transform-style:preserve-3d;transition:transform .2s;
+      display:flex;align-items:center;justify-content:center;
+    }
 
-## Tech stack (recommended)
-- Frontend: React (Vite) + TypeScript
-  - 3D preview: react-three-fiber + drei
-  - Canvas editing: Konva or custom draggable UI mapped to shirt UV
-  - UI: TailwindCSS + shadcn/ui (optional)
-- Backend: Node.js + Express (TypeScript optional)
-  - Storage: local (dev) / S3 (prod)
-  - PDF/SVG generation: PDFKit / sharp / SVG templating or Puppeteer for HTML->PDF
-  - Authentication: JWT or NextAuth (if using Next.js)
-- Database: PostgreSQL (or MongoDB) for orders & designs
-- Payments: Stripe (or local: PayMongo / PayPal / GCASH integrations)
-- Deployment: Vercel/Netlify (frontend) + Render/Heroku/AWS Elastic Beanstalk (backend) or use a monorepo on Vercel with serverless functions
+    /* T-shirt image background (transparent PNG recommended) */
+    .shirt{
+      width:100%;height:100%;background-repeat:no-repeat;background-position:center center;background-size:contain;position:relative;
+      transform-style:preserve-3d;
+    }
 
----
+    /* Design layer placed on top of the shirt - draggable element */
+    .design-layer{position:absolute;left:50%;top:40%;transform-origin:center center;touch-action:none;cursor:grab;display:flex;align-items:center;justify-content:center}
+    .design-layer.grabbing{cursor:grabbing}
+    .design-img{max-width:100%;max-height:100%;display:block;pointer-events:none;user-select:none;}
 
-## Key features included in scaffold
-1. 3D T-shirt preview (placeholder model) with 360° orbit controls
-2. Upload images and fonts, add text, move/scale/rotate elements on the shirt surface
-3. Save design to user account (or guest) and persist editable JSON representation
-4. Generate print-ready SVG/PDF file for download and for admin printing
-5. Simple checkout flow (Stripe) that preserves the final design and attaches it to the order
-6. Admin page to see orders and download production files
+    /* Handles */
+    .handle{position:absolute;width:18px;height:18px;background:var(--accent);border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#012; font-size:12px; font-weight:700; cursor:pointer}
+    .handle.rotate{right:-10px;top:50%;transform:translate(50%,-50%)}
+    .handle.scale{right:-10px;bottom:-10px;transform:translate(50%,50%)}
+    .element-box{position:absolute;border:1px dashed rgba(255,255,255,0.25);pointer-events:none;display:none}
 
----
+    /* Right: controls panel */
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:18px;border-radius:12px;min-height:200px}
+    .panel h2{margin:0 0 12px 0;font-size:18px}
+    .row{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    input[type=file]{color:transparent}
+    button, input[type=button]{background:var(--accent);border:none;color:#012;padding:10px 12px;border-radius:8px;cursor:pointer}
+    .muted{color:#9fb6cf;font-size:13px}
+    .small{font-size:13px}
+    .control{background:#071021;padding:10px;border-radius:8px;margin-bottom:10px}
+    label{font-size:13px;color:#cfeffd;margin-bottom:6px;display:block}
 
-## File structure (suggested)
-```
-/tshirt-customizer
-├─ /apps
-│  ├─ /frontend  (React + Vite)
-│  └─ /backend   (Express API)
-├─ /models      (3D assets, sample .glb shirt model)
-├─ /scripts
-└─ README.md
-```
+    /* Text element style */
+    .txt-el{padding:6px 10px;border-radius:6px;background:transparent;color:#0b1220;font-weight:700;user-select:none}
 
----
-
-## Frontend - features & API contract
-### Important pages
-- `/` — Landing / product list
-- `/customize/:productId` — Full customizer UI (3D preview + tool panel)
-- `/cart` — Cart
-- `/checkout` — Checkout (Stripe integration)
-- `/account/orders` — User orders
-- `/admin/orders` — Admin order downloader
-
-### API endpoints (backend)
-- `POST /api/upload` — upload user images (returns file URL)
-- `POST /api/generate` — accept design JSON, generate PDF/SVG, return file URL (or stream)
-- `POST /api/create-payment-intent` — Stripe payment creation with design meta
-- `POST /api/orders` — save order (with design metadata, file links)
-- `GET /api/admin/orders` — list orders (admin only)
-
-Design JSON example:
-```json
-{
-  "productId": "tee-classic",
-  "color": "white",
-  "elements": [
-    {"type":"image","src":"/uploads/abc.png","x":0.3,"y":0.2,"scale":0.8,"rotation":10},
-    {"type":"text","text":"Hello","font":"Montserrat","size":48,"x":0.5,"y":0.8}
-  ],
-  "canvas": {"w":2000,"h":2400} // print resolution
-}
-```
-
----
-
-## Backend considerations (print-ready generation)
-- Keep a canonical canvas resolution for print (e.g., 2000×2400 px @ 300 DPI depending on print process). For Cricut: offer export to SVG with vector text/outlines or high-res PNG.
-- SVG route is best for Cricut/cutters; ensure fonts are converted to paths or embed font files.
-- For direct-to-garment, provide a flattened PNG with transparent background sized to printer spec and optionally a PDF wrapper.
-- Use `sharp` to composite raster images and `svg2img` or `puppeteer` to rasterize HTML/SVG to PDF.
-
----
-
-## Database schema (simplified)
-```sql
-CREATE TABLE users (
-  id uuid PRIMARY KEY,
-  email varchar UNIQUE,
-  password_hash varchar,
-  created_at timestamptz DEFAULT now()
-);
-
-CREATE TABLE orders (
-  id uuid PRIMARY KEY,
-  user_id uuid REFERENCES users(id),
-  status varchar,
-  total_amount integer,
-  design_json jsonb,
-  print_files jsonb,
-  created_at timestamptz DEFAULT now()
-);
-```
-
----
-
-## Starter code snippets (frontend)
-
-### `frontend/src/main.tsx` (Vite + React)
-```tsx
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-import App from './App'
-import './index.css'
-
-createRoot(document.getElementById('root')!).render(<App />)
-```
-
-### `frontend/src/App.tsx` (routes + link to customizer)
-```tsx
-import React from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Customize from './pages/Customize'
-import Home from './pages/Home'
-
-export default function App(){
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path='/' element={<Home/>} />
-        <Route path='/customize/:id' element={<Customize/>} />
-      </Routes>
-    </BrowserRouter>
-  )
-}
-```
-
-### `frontend/src/pages/Customize.tsx` (core)
-```tsx
-import React, { useState } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-
-export default function Customize(){
-  const [design, setDesign] = useState(null)
-  // upload handling, element placement UI, text tool, color picker, save/export calls
-
-  return (
-    <div className='grid md:grid-cols-2 gap-6 p-6'>
-      <div className='h-[600px] bg-white rounded shadow'>
-        <Canvas>
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[5,5,5]} />
-          <OrbitControls />
-          {/* real Shirt 3D model here (GLTF) */}
-        </Canvas>
+    /* Responsive tweak */
+    @media (max-width:980px){
+      .container{grid-template-columns:1fr}
+      .stage{width:100%;height:520px}
+      .panel{order:2}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- PREVIEW -->
+    <div class="stage-wrap">
+      <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <strong style="font-size:18px">T-Shirt Customizer</strong>
+          <div class="muted" style="font-size:13px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,0.02)">Pure HTML / JS</div>
+        </div>
+        <div class="muted small">Tip: drag image, use handles to resize/rotate, use slider to spin shirt</div>
       </div>
 
-      <div className='p-4'>
-        {/* Tools: upload image, add text, transform controls, download/export */}
+      <div class="stage" id="stage">
+        <div class="shirt-3d" id="shirt3d">
+          <!-- Shirt with transparent PNG background. Default uses inline SVG shirt (simple). You can replace with your own transparent PNG by changing background-image via controls. -->
+          <div class="shirt" id="shirt" style="background-image: url('data:image/svg+xml;utf8,\
+            <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23ffffff%22>\
+            <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22white%22 stroke=%22black%22 stroke-width=%221%22/></g></svg>');">
+            <!-- design wrapper: we will insert elements here -->
+            <div id="designArea" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px">
+        <label class="small muted">Rotate preview</label>
+        <input id="rotateSlider" type="range" min="0" max="360" value="0" style="width:260px">
       </div>
     </div>
-  )
+
+    <!-- CONTROLS -->
+    <div class="panel">
+      <h2>Controls</h2>
+
+      <div class="control">
+        <label>Upload image to place on shirt</label>
+        <div class="row">
+          <input id="fileInput" type="file" accept="image/*">
+          <button id="addImageBtn">Add as design</button>
+        </div>
+        <div class="muted small">Supported: PNG/JPG. Transparent PNG works best for print.</div>
+      </div>
+
+      <div class="control">
+        <label>Add text</label>
+        <div class="row">
+          <input id="textInput" placeholder="Type text here" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit">
+          <button id="addTextBtn">Add</button>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <label style="flex:1">Font size
+            <input id="fontSize" type="range" min="14" max="120" value="36" style="width:100%">
+          </label>
+        </div>
+      </div>
+
+      <div class="control">
+        <label>T-shirt background / color</label>
+        <div class="row">
+          <select id="presetShirt" style="flex:1;padding:8px;border-radius:6px;background:transparent;color:inherit">
+            <option value="white">White (Default)</option>
+            <option value="black">Black</option>
+            <option value="blue">Blue</option>
+            <option value="transparent">Transparent (use your PNG)</option>
+          </select>
+          <button id="downloadBtn">Download PNG</button>
+        </div>
+        <div class="muted small">If you want a real photographic mockup or GLB 3D, I can add that later.</div>
+      </div>
+
+      <div class="control">
+        <label>Design elements</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button id="selectBtn" onclick="selectMode()">Select</button>
+          <button id="clearBtn">Clear design</button>
+        </div>
+        <div class="muted small">Click a design element to select it. Use the handles to rotate/scale. Drag to move.</div>
+      </div>
+
+      <div style="margin-top:8px" class="muted small">
+        <strong>How to save to GitHub:</strong><br>
+        Create a repo, add this file as <code>index.html</code>, then enable GitHub Pages (optional) or just open the file locally.
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ============================
+   Simple in-browser design editor
+   - supports adding images and text elements
+   - drag, rotate, scale via handles
+   - export PNG via html2canvas
+   ============================ */
+
+const stage = document.getElementById('stage');
+const shirt3d = document.getElementById('shirt3d');
+const shirt = document.getElementById('shirt');
+const designArea = document.getElementById('designArea');
+const rotateSlider = document.getElementById('rotateSlider');
+const fileInput = document.getElementById('fileInput');
+const addImageBtn = document.getElementById('addImageBtn');
+const addTextBtn = document.getElementById('addTextBtn');
+const textInput = document.getElementById('textInput');
+const fontSizeRange = document.getElementById('fontSize');
+const downloadBtn = document.getElementById('downloadBtn');
+const presetShirt = document.getElementById('presetShirt');
+const clearBtn = document.getElementById('clearBtn');
+
+let selectedEl = null;
+let dragState = null;
+
+/* rotate preview slider => rotateY */
+rotateSlider.addEventListener('input', e=>{
+  const deg = e.target.value;
+  shirt3d.style.transform = `rotateY(${deg}deg)`;
+});
+
+/* Shirt color presets (easy: change background color behind shirt image) */
+presetShirt.addEventListener('change', e=>{
+  const v = e.target.value;
+  if(v === 'white') {
+    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
+      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23ffffff%22>\
+      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22white%22 stroke=%22black%22 stroke-width=%221%22/></g></svg>')";
+    shirt.style.backgroundColor = 'transparent';
+    stage.style.background = 'linear-gradient(180deg,#fff,#f3f4f6)';
+  } else if(v === 'black') {
+    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
+      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23000%22>\
+      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22black%22 stroke=%22white%22 stroke-width=%221%22/></g></svg>')";
+    stage.style.background = 'linear-gradient(180deg,#0b1220,#071021)';
+  } else if(v === 'blue') {
+    shirt.style.backgroundImage = "url('data:image/svg+xml;utf8,\
+      <svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 600 800%22><g fill=%22%23006b8f%22>\
+      <path d=%22M160 80c0 0-52 8-80 40s-24 46-24 88 0 32 0 112 32 160 80 200 144 24 184 24 140 24 184-24 80-120 80-200 0-56-24-88-80-40-80-40-30-16-70-16-70 16-70 16-21-16-70-16-70 16-70 16z%22 fill=%22%23006b8f%22 stroke=%22white%22 stroke-width=%221%22/></g></svg>')";
+    stage.style.background = 'linear-gradient(180deg,#e6f7ff,#dff7ff)';
+  } else if(v === 'transparent'){
+    // Clear the shirt drawing and leave transparent background (user should use a real PNG)
+    shirt.style.backgroundImage = "none";
+    shirt.style.backgroundColor = 'transparent';
+    stage.style.background = 'linear-gradient(180deg,#fff,#f3f4f6)';
+  }
+});
+
+/* Add image: load file into memory */
+let lastLoadedImageData = null;
+fileInput.addEventListener('change', async e=>{
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=> {
+    lastLoadedImageData = reader.result;
+  };
+  reader.readAsDataURL(f);
+});
+
+addImageBtn.addEventListener('click', ()=>{
+  if(!lastLoadedImageData){
+    alert('Please choose an image file first (PNG/JPG).');
+    return;
+  }
+  const imgEl = createDesignImage(lastLoadedImageData);
+  designArea.appendChild(imgEl.wrapper);
+  setSelected(imgEl.wrapper);
+});
+
+/* Add text element */
+addTextBtn.addEventListener('click', ()=>{
+  const txt = textInput.value.trim();
+  if(!txt) return alert('Type some text first.');
+  const el = createTextElement(txt, parseInt(fontSizeRange.value,10));
+  designArea.appendChild(el.wrapper);
+  setSelected(el.wrapper);
+});
+
+/* Clear all design elements */
+clearBtn.addEventListener('click', ()=>{
+  if(!confirm('Clear all design elements?')) return;
+  designArea.innerHTML = '';
+  selectedEl = null;
+});
+
+/* Download using html2canvas */
+downloadBtn.addEventListener('click', async ()=>{
+  // show a quick highlight border (optional)
+  const exportArea = document.getElementById('stage');
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Rendering...';
+  try {
+    // html2canvas - capture the central stage
+    const canvas = await html2canvas(exportArea, {backgroundColor: null, scale: 2, useCORS: true});
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'tshirt-design.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch(err){
+    alert('Export failed: '+err.message);
+    console.error(err);
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = 'Download PNG';
+  }
+});
+
+/* ---------- Element creation helpers ---------- */
+
+/* Utility to create a design image element (draggable, rotatable, scalable) */
+function createDesignImage(dataUrl){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'design-layer';
+  wrapper.style.width = '220px';
+  wrapper.style.height = '220px';
+  wrapper.style.left = '50%';
+  wrapper.style.top = '40%';
+  wrapper.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)';
+  wrapper.style.pointerEvents = 'auto';
+
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.className = 'design-img';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.objectFit = 'contain';
+  wrapper.appendChild(img);
+
+  attachInteraction(wrapper);
+  return {wrapper, img};
 }
-```
 
----
+/* Utility to create text element */
+function createTextElement(text, size=36){
+  const wrapper = document.createElement('div');
+  wrapper.className = 'design-layer';
+  wrapper.style.width = 'auto';
+  wrapper.style.height = 'auto';
+  wrapper.style.left = '50%';
+  wrapper.style.top = '50%';
+  wrapper.style.transform = 'translate(-50%,-50%) rotate(0deg) scale(1)';
+  wrapper.style.pointerEvents = 'auto';
 
-## Starter code snippets (backend)
+  const span = document.createElement('div');
+  span.className = 'txt-el';
+  span.contentEditable = true;
+  span.innerText = text;
+  span.style.fontSize = size+'px';
+  span.style.color = '#000';
+  span.style.background = 'rgba(255,255,255,0.85)';
+  span.style.pointerEvents = 'auto';
+  span.style.userSelect = 'text';
+  wrapper.appendChild(span);
 
-### `backend/index.js` (Express minimal)
-```js
-const express = require('express')
-const multer = require('multer')
-const sharp = require('sharp')
-const { v4: uuidv4 } = require('uuid')
-const fs = require('fs')
+  attachInteraction(wrapper);
+  return {wrapper, span};
+}
 
-const upload = multer({ dest: 'uploads/' })
-const app = express()
-app.use(express.json())
+/* ---------- Interaction: drag, rotate, scale ---------- */
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
-  // just return file path for demo; in prod, upload to S3
-  res.json({ url: `/uploads/${req.file.filename}` })
-})
+function attachInteraction(wrapper){
+  // Create handles
+  const rotateHandle = document.createElement('div');
+  rotateHandle.className = 'handle rotate';
+  rotateHandle.innerText = '⤾';
+  rotateHandle.title = 'Rotate';
+  wrapper.appendChild(rotateHandle);
 
-app.post('/api/generate', async (req, res) => {
-  const design = req.body
-  // Example: render SVG from design JSON and convert to PDF/PNG
-  // TODO: implement svg templating -> sharp -> save
-  const fileId = uuidv4()
-  const outPath = `generated/${fileId}.png`
-  // placeholder: create a blank PNG
-  await sharp({ create: { width: 2000, height: 2400, channels: 4, background: { r:255,g:255,b:255,alpha:0 }}})
-    .png().toFile(outPath)
-  res.json({ url: `/generated/${fileId}.png` })
-})
+  const scaleHandle = document.createElement('div');
+  scaleHandle.className = 'handle scale';
+  scaleHandle.innerText = '⇲';
+  scaleHandle.title = 'Scale';
+  wrapper.appendChild(scaleHandle);
 
-app.listen(8080, ()=> console.log('API listening on 8080'))
-```
+  // Show dashed box on select
+  const box = document.createElement('div');
+  box.className = 'element-box';
+  wrapper.appendChild(box);
 
----
+  // Basic style: make pointer events work
+  wrapper.addEventListener('pointerdown', (e)=>{
+    e.stopPropagation();
+    setSelected(wrapper);
+    // bring to front
+    wrapper.style.zIndex = 1000;
+    startDrag(e, wrapper);
+  });
 
-## Admin flow for downloading print files
-- After payment, backend will call `/api/generate` with the design JSON and store the generated PDF/SVG in `print_files` field of the `orders` table.
-- Admin UI lists orders; clicking 'Download Print File' triggers a download of the stored file.
+  // rotate
+  rotateHandle.addEventListener('pointerdown', (e)=>{
+    e.stopPropagation();
+    setSelected(wrapper);
+    startRotate(e, wrapper);
+  });
 
----
+  // scale
+  scaleHandle.addEventListener('pointerdown', (e)=>{
+    e.stopPropagation();
+    setSelected(wrapper);
+    startScale(e, wrapper);
+  });
 
-## Security & Production notes
-- Validate/scan uploaded images for malicious content and size limits.
-- Rate-limit upload endpoints.
-- Use signed S3 URLs (if using S3) for direct browser uploads.
-- Sanitize user-provided SVG if allowing raw SVG input.
+  // double-click on text to edit
+  const editable = wrapper.querySelector('[contenteditable]');
+  if(editable){
+    editable.addEventListener('dblclick', e=>{
+      e.stopPropagation();
+      editable.focus();
+    });
+  }
+}
 
----
+function setSelected(el){
+  // deselect previously
+  if(selectedEl && selectedEl !== el){
+    selectedEl.style.outline = 'none';
+    const oldBox = selectedEl.querySelector('.element-box');
+    if(oldBox) oldBox.style.display = 'none';
+    const oldHandles = selectedEl.querySelectorAll('.handle');
+    oldHandles.forEach(h=>h.style.display = 'none');
+    selectedEl.style.zIndex = '';
+  }
+  selectedEl = el;
+  if(selectedEl){
+    selectedEl.style.outline = '2px solid rgba(6,182,212,0.45)';
+    const box = selectedEl.querySelector('.element-box');
+    if(box){
+      box.style.display = 'block';
+      box.style.left = '0';box.style.top='0';box.style.right='0';box.style.bottom='0';
+    }
+    const handles = selectedEl.querySelectorAll('.handle');
+    handles.forEach(h=>h.style.display = 'flex');
+  }
+}
 
-## How I built this scaffold for you
-- Provided a React-based customizer skeleton and a minimal Express backend to upload images and generate placeholder print files.
-- Included recommended packages and step-by-step implementation points to complete each feature.
+/* Dragging */
+function startDrag(e, el){
+  const start = {x: e.clientX, y: e.clientY};
+  const rect = el.getBoundingClientRect();
+  const parentRect = designArea.getBoundingClientRect();
 
----
+  // compute current translate values
+  const computed = window.getComputedStyle(el);
+  // transform: translate(-50%,-50%) rotate(Adeg) scale(s)
+  // We'll maintain left/top in percentages relative to designArea.
+  const leftPx = rect.left - parentRect.left + rect.width/2;
+  const topPx  = rect.top - parentRect.top + rect.height/2;
 
-## Next steps I can do for you (pick any)
-1. Replace placeholder 3D box with a proper shirt GLB model and unwrap textures correctly.
-2. Implement drag/resize/rotate tooling mapped to the shirt UV (so images wrap correctly).
-3. Implement print-ready generator: SVG with text outlines + PDF export for Cricut and DTF.
-4. Implement Stripe checkout + persist order + attach print file.
-5. Build admin dashboard to download print files and push to printer queue.
-6. Deploy full stack to Vercel + Render (I can produce deployment scripts).
+  function onMove(ev){
+    const dx = ev.clientX - start.x;
+    const dy = ev.clientY - start.y;
+    const newCenterX = leftPx + dx;
+    const newCenterY = topPx + dy;
+    const pctX = (newCenterX / parentRect.width) * 100;
+    const pctY = (newCenterY / parentRect.height) * 100;
+    el.style.left = pctX + '%';
+    el.style.top = pctY + '%';
+    el.style.transform = el.style.transform || 'translate(-50%,-50%) rotate(0deg) scale(1)';
+    el.classList.add('grabbing');
+  }
 
----
+  function onUp(){
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    el.classList.remove('grabbing');
+  }
 
-### Notes
-- This file is the project scaffold. If you want, I can now generate the *complete codebase* (frontend + backend) as downloadable files, or I can implement a single prioritized feature end-to-end (for example: full PDF/SVG export ready for Cricut).
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
 
+/* Rotation (around element center) */
+function startRotate(e, el){
+  const parentRect = designArea.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const center = {x: elRect.left + elRect.width/2, y: elRect.top + elRect.height/2};
+  const startAngle = getRotation(el); // degrees
 
-// End of scaffold
+  function onMove(ev){
+    const angle = Math.atan2(ev.clientY - center.y, ev.clientX - center.x) * 180/Math.PI;
+    // calculate difference between start and angle (keeping a smoother rotation)
+    // We want the rotation to follow the pointer angle; offset by -90 to have intuitive handle.
+    const newAngle = angle + 90;
+    el.style.transform = setTransform(el, {rotation: newAngle});
+  }
+
+  function onUp(){
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+/* Scaling */
+function startScale(e, el){
+  e.preventDefault();
+  const parentRect = designArea.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const center = {x: elRect.left + elRect.width/2, y: elRect.top + elRect.height/2};
+  const startDist = Math.hypot(e.clientX - center.x, e.clientY - center.y);
+  const startScale = getScale(el);
+
+  function onMove(ev){
+    const dist = Math.hypot(ev.clientX - center.x, ev.clientY - center.y);
+    const ratio = dist / startDist;
+    const newScale = Math.max(0.2, startScale * ratio);
+    el.style.transform = setTransform(el, {scale: newScale});
+  }
+  function onUp(){
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
+/* Transform helpers: read and write rotate/scale keeping translate(-50%,-50%) */
+function getRotation(el){
+  const t = el.style.transform || window.getComputedStyle(el).transform;
+  if(!t || t === 'none') return 0;
+  // it might be like "translate(-50%,-50%) rotate(12deg) scale(1.2)"
+  const m = t.match(/rotate\((-?\d+\.?\d*)deg\)/);
+  return m ? parseFloat(m[1]) : 0;
+}
+function getScale(el){
+  const t = el.style.transform || window.getComputedStyle(el).transform;
+  const m = t.match(/scale\(([\d\.]+)\)/);
+  return m ? parseFloat(m[1]) : 1;
+}
+function setTransform(el, {rotation=null, scale=null}){
+  const oldRot = getRotation(el);
+  const oldScale = getScale(el);
+  const rot = rotation === null ? oldRot : rotation;
+  const s = scale === null ? oldScale : scale;
+  // preserve translate(-50%,-50%)
+  return `translate(-50%,-50%) rotate(${rot}deg) scale(${s})`;
+}
+
+/* Select mode (placeholder if you add separate tools) */
+function selectMode(){ /* no-op */ }
+
+/* Deselect when clicking outside */
+designArea.addEventListener('pointerdown', e=>{
+  // if clicked on empty designArea, deselect
+  if(e.target === designArea){
+    if(selectedEl){
+      selectedEl.style.outline = 'none';
+      const box = selectedEl.querySelector('.element-box');
+      if(box) box.style.display = 'none';
+      const oldHandles = selectedEl.querySelectorAll('.handle');
+      oldHandles.forEach(h=>h.style.display = 'none');
+      selectedEl.style.zIndex = '';
+    }
+    selectedEl = null;
+  }
+});
+
+/* Keep font size slider synced with selected text element */
+fontSizeRange.addEventListener('input', ()=>{
+  if(!selectedEl) return;
+  const txt = selectedEl.querySelector('[contenteditable]');
+  if(txt) txt.style.fontSize = fontSizeRange.value + 'px';
+});
+
+/* Make sure newly created elements show handles initially */
+document.addEventListener('click', e=>{
+  if(e.target.closest('.design-layer')){
+    setSelected(e.target.closest('.design-layer'));
+  }
+});
+
+/* Prevent default dragging of images */
+document.addEventListener('dragstart', e=> e.preventDefault());
+
+/* End of script */
+</script>
+</body>
+</html>
